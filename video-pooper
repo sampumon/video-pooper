@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# listens for incoming videos, converts them as ogv and outputs html5 <video> for them
+# (chose ogv over webm because of 5x faster ffmpeg encoding)
+# works well with github.com/sampumon/muumi-dl
+# requires inotifywait, so requires linux
+
+# usage: ./video-pooper [watch-dir] [out-dir]
+
+# defaults:
+# 	watch-dir: ./video-in
+# 	out-dir:   ./video-out
+
+watchdir=${1:-video-in}
+outdir=${2:-video-out}
+
+# monitor for freshly written OR moved files
+inotifywait -m -e close_write,moved_to $watchdir | while read dir event file; do
+	echo DEBUG: $dir $event $file
+
+	in="$dir$file"
+	out="$outdir/$file.ogv"
+
+	echo DEBUG: converting "$in" → "$out"
+
+	# set some sensible bitrates (forks fine for YLE Areena)
+	ffmpeg -i "$in" -acodec libvorbis -vb 600k -ab 100k "$out"
+
+	cat >> body <<-EOF
+		<h2>$file</h2>
+		<video src="$out" controls></video>
+	EOF
+
+	echo "DEBUG: all done! check index.html for new stuff."
+
+	# TODO: put newest on top
+	# TODO: think about current directory
+	cat head body tail > index.html
+
+	# cleanup (note: yle-dl --resume would re-download the video)
+	# rm $in
+done
